@@ -427,6 +427,30 @@
       </div>
     </div>
 
+    <!-- RECENTLY UPDATED PAGES -->
+    <div class="section-head">Recently updated pages <span class="date-range-label" id="updated-label"></span></div>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:12px;">GSC performance for pages updated as part of the current refresh cycle. Hardcoded list — edit in the dashboard source to update.</p>
+    <div class="table-card">
+      <div class="table-head">
+        <span class="table-title">Refresh watch</span>
+        <span class="table-count" id="updated-count"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th onclick="sortUpdated('key')">Page <span id="upsort-key"></span></th>
+            <th onclick="sortUpdated('clicks')">Clicks <span id="upsort-clicks">↓</span></th>
+            <th onclick="sortUpdated('impressions')">Impressions <span id="upsort-impressions"></span></th>
+            <th onclick="sortUpdated('ctr')">CTR <span id="upsort-ctr"></span></th>
+            <th onclick="sortUpdated('position')">Position <span id="upsort-position"></span></th>
+            <th class="no-sort" id="updated-cmp-clicks-header" style="display:none;background:#f0f7ff;">Clicks %</th>
+            <th class="no-sort" id="updated-cmp-impr-header" style="display:none;background:#f0fff4;">Impr. %</th>
+          </tr></thead>
+          <tbody id="updated-tbody"><tr><td colspan="7" class="loading-state"><div class="spinner"></div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- NON-BLOG PAGES -->
     <div class="section-head">Non-blog pages <span class="date-range-label" id="nonblog-label"></span></div>
     <p style="font-size:12px;color:var(--text3);margin-bottom:12px;">Commercial and service pages — excludes all /blog/ URLs. Shows organic search performance for your core site pages.</p>
@@ -724,12 +748,14 @@ function processData(data) {
   document.getElementById('channel-label').textContent = curLabel+cmpLabel;
   document.getElementById('nonblog-label').textContent = curLabel+cmpLabel;
   document.getElementById('decline-label').textContent = curLabel+cmpLabel;
+  document.getElementById('updated-label').textContent = curLabel+cmpLabel;
   buildKpiRow('kpi-prior-row', data.gscCurrent||{}, data.gscPrior||{}, 'prior period');
   buildKpiRow('kpi-sixmo-row', data.gscCurrent||{}, data.gscSixMo||{}, '6 months ago');
+  const hasCmp = !!(dr.cmpStart);
   buildTrendChart(data.gscTrend||[]);
   buildPagesChart(data.gscPages||[]);
-  const hasCmp = !!(dr.cmpStart);
   renderPerfTable(data, hasCmp);
+  renderUpdatedPages(data.gscPagesAll||[], data.gscPagesCmp||[], hasCmp);
   renderChannelSection(data.ga4Channel||[], data.ga4ChannelCmp||[], hasCmp);
   renderLlmSection(data.ga4Llm||[], data.ga4LlmCmp||[], hasCmp);
   renderNonBlog(data.gscPagesAll||[], data.gscPagesCmp||[], hasCmp);
@@ -1171,6 +1197,96 @@ document.addEventListener('DOMContentLoaded', () => {
   const input = document.getElementById('spotlight-input');
   if (input) input.addEventListener('keydown', e => { if (e.key === 'Enter') loadSpotlight(); });
 });
+
+// ── RECENTLY UPDATED PAGES ───────────────────────────────────
+const UPDATED_URLS = new Set([
+  'https://dclcorp.com/blog/3pl/difference-between-1pl-2pl-3pl-4pl-5pl/',
+  'https://dclcorp.com/services/ecommerce-fulfillment/',
+  'https://dclcorp.com/blog/3pl/comprehensive-fulfillment-provider-questionnaire/',
+  'https://dclcorp.com/blog/3pl/3pl-performance-metrics/',
+  'https://dclcorp.com/blog/fulfillment/omnichannel-fulfillment/',
+  'https://dclcorp.com/blog/fulfillment/fulfillment-center-difference-warehouse/',
+  'https://dclcorp.com/why-dcl/what-we-offer/',
+  'https://dclcorp.com/blog/3pl/best-3pls-consumer-electronics/',
+  'https://dclcorp.com/blog/fulfillment/order-fulfillment-guide/',
+  'https://dclcorp.com/blog/fulfillment/returns-management-process/',
+  'https://dclcorp.com/blog/fulfillment/fulfillment-strategies-for-subscription-box-operations',
+  'https://dclcorp.com/blog/fulfillment/3pl-integration-guide/',
+  'https://dclcorp.com/blog/fulfillment/ecommerce-fulfillment/',
+  'https://dclcorp.com/blog/3pl/3pl-costs/',
+  'https://dclcorp.com/blog/fulfillment/outsourcing-order-fulfillment-guide/',
+  'https://dclcorp.com/blog/inventory/inventory-management-ecommerce-businesses/',
+  'https://dclcorp.com/blog/3pl/guide-third-party-logistics-3pl-fulfillment-providers/',
+]);
+
+let updatedData = [], updatedSortCol = 'clicks', updatedSortDir = 'desc';
+
+function renderUpdatedPages(gscPagesAll, gscPagesCmp, hasCmp) {
+  const cmpMap = {};
+  (gscPagesCmp||[]).forEach(r => { cmpMap[r.keys?r.keys[0]:''] = r; });
+
+  updatedData = (gscPagesAll||[])
+    .filter(r => UPDATED_URLS.has(r.keys?r.keys[0]:''))
+    .map(r => ({
+      key: (r.keys?r.keys[0]:'').replace(/https?:\/\/[^/]+/,'') || '/',
+      fullUrl: r.keys?r.keys[0]:'',
+      clicks: r.clicks||0, impressions: r.impressions||0,
+      ctr: r.ctr||0, position: r.position||0
+    }));
+
+  // Include URLs with no GSC data yet (show as zeros)
+  UPDATED_URLS.forEach(url => {
+    const path = url.replace(/https?:\/\/[^/]+/,'') || '/';
+    if (!updatedData.find(r => r.fullUrl === url)) {
+      updatedData.push({ key: path, fullUrl: url, clicks: 0, impressions: 0, ctr: 0, position: 0 });
+    }
+  });
+
+  const cmpClicksHeader = document.getElementById('updated-cmp-clicks-header');
+  const cmpImprHeader = document.getElementById('updated-cmp-impr-header');
+  if (cmpClicksHeader) cmpClicksHeader.style.display = hasCmp ? '' : 'none';
+  if (cmpImprHeader) cmpImprHeader.style.display = hasCmp ? '' : 'none';
+
+  document.getElementById('updated-count').textContent = updatedData.length + ' pages';
+  renderUpdatedTable(cmpMap, hasCmp);
+}
+
+function renderUpdatedTable(cmpMap, hasCmp) {
+  cmpMap = cmpMap || {};
+  const sorted = [...updatedData].sort((a, b) => {
+    let av = a[updatedSortCol]??-Infinity, bv = b[updatedSortCol]??-Infinity;
+    if (typeof av === 'string') return updatedSortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av);
+    return updatedSortDir==='asc'?av-bv:bv-av;
+  });
+  const maxClicks = Math.max(...sorted.map(r=>r.clicks), 1);
+  document.getElementById('updated-tbody').innerHTML = sorted.map(r => {
+    const posCls = r.position<=3?'pos-top':r.position<=10?'pos-mid':r.position>0?'pos-low':'';
+    const cmp = cmpMap[r.fullUrl] || null;
+    const cmpClicks = cmp?(cmp.clicks||0):0;
+    const cmpImpr = cmp?(cmp.impressions||0):0;
+    const cmpHtml = hasCmp
+      ? `<td style="background:rgba(240,247,255,0.4);">${cmpArrow(r.clicks,cmpClicks)}</td><td style="background:rgba(240,255,244,0.4);">${cmpArrow(r.impressions,cmpImpr)}</td>`
+      : '';
+    const posDisplay = r.position > 0 ? `<span class="pos-badge ${posCls}">${r.position.toFixed(1)}</span>` : '<span style="color:var(--text3);font-size:12px;">—</span>';
+    return `<tr>
+      <td class="query-cell" title="${r.fullUrl}"><a href="${r.fullUrl}" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${r.key}</a></td>
+      <td><div class="bar-wrap"><span class="bar-val">${r.clicks.toLocaleString()}</span><div class="bar-track"><div class="bar-fill-blue" style="width:${Math.round(r.clicks/maxClicks*100)}%"></div></div></div></td>
+      <td>${r.impressions.toLocaleString()}</td>
+      <td>${(r.ctr*100).toFixed(1)}%</td>
+      <td>${posDisplay}</td>
+      ${cmpHtml}
+    </tr>`;
+  }).join('');
+}
+
+function sortUpdated(col) {
+  if (updatedSortCol===col) updatedSortDir=updatedSortDir==='asc'?'desc':'asc'; else{updatedSortCol=col;updatedSortDir='desc';}
+  ['key','clicks','impressions','ctr','position'].forEach(c=>{const el=document.getElementById('upsort-'+c);if(el)el.textContent=c===updatedSortCol?(updatedSortDir==='asc'?'↑':'↓'):'';});
+  const hasCmp = !!(cachedData&&cachedData.dateRange&&cachedData.dateRange.cmpStart);
+  const cmpMap = {};
+  (cachedData&&cachedData.gscPagesCmp||[]).forEach(r=>{cmpMap[r.keys?r.keys[0]:'']=r;});
+  renderUpdatedTable(cmpMap, hasCmp);
+}
 
 // ── NON-BLOG PAGES ───────────────────────────────────────────
 let nonBlogData = [], nonBlogSortCol = 'clicks', nonBlogSortDir = 'desc';
