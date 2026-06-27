@@ -814,7 +814,8 @@ function renderPerfTable(data, hasCmp) {
   const q = (document.getElementById('perf-search').value||'').toLowerCase();
   let rows=[], cmpMap={};
   if (perfTab==='queries') {
-    rows=(data.gscQueries||[]).map(r=>({key:r.keys?r.keys[0]:'',clicks:r.clicks||0,impressions:r.impressions||0,ctr:r.ctr||0,position:r.position||0}));
+    rows=(data.gscQueries||[]).map(r=>({key:r.keys?r.keys[0]:'',clicks:r.clicks||0,impressions:r.impressions||0,ctr:r.ctr||0,position:r.position||0}))
+      .filter(r=>!r.key.toLowerCase().includes('dcl'));
     (data.gscQueriesCmp||[]).forEach(r=>{cmpMap[r.keys?r.keys[0]:'']=r;});
     document.getElementById('perf-thead').innerHTML=`
       <th onclick="sortPerf('key')">Query <span id="psf-key"></span></th>
